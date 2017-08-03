@@ -294,6 +294,27 @@ describe Agents::ImapFolderAgent do
           }.not_to raise_exception
         end
       end
+
+      describe 'with include_rfc822' do
+        before do
+          @checker.options['include_rfc822'] = true
+          @checker.save!
+        end
+
+        it 'should check for mails and emit events with rfc822 data' do
+          expect { @checker.check }.to change { Event.count }.by(2)
+          expect(@checker.notified.sort).to eq(mails.map(&:message_id).sort)
+          expect(@checker.lastseen).to eq(mails.each_with_object(@checker.make_seen) { |mail, seen|
+              seen[mail.uidvalidity] = mail.uid
+            })
+
+          expect(Event.last(2).map(&:payload)).to eq expected_payloads.map.with_index { |payload, i|
+            payload.merge('rfc822' => mails[i].encoded)
+          }
+
+          expect { @checker.check }.not_to change { Event.count }
+        end
+      end
     end
   end
 
